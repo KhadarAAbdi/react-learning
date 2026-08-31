@@ -1,0 +1,51 @@
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.app {
+  width: 100%;
+  max-width: 640px;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  padding: 0.3rem 0.5rem;
+}
+
+/* Handy shared styles the exercises can use. Not required. */
+.card {
+  border: 1px solid gray;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid gray;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.85rem;
+}
