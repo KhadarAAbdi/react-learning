@@ -121,7 +121,6 @@ const PinnedList = ({ pinned, onUnpin }: PinnedListProps) => {
 }
 
 const ResultsList = ({ results, onPin }: ResultsListProps) => {
-  console.log("results: ", results)
   return (
     <div>
       <h2>Results</h2>
