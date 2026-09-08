@@ -88,7 +88,7 @@
 //   Exercise05's effect code you no longer have to write here.
 // ============================================================================
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface GitHubUser {
   login: string
@@ -97,9 +97,13 @@ interface GitHubUser {
 }
 
 type SetValue<T> =  (newValue: T | ((prev: T) => T)) => void
+
+type Theme = "light" | "dark"
+
 // TODO 1
 // function useLocalStorage<T>(key: string, initialValue: T) { ... }
 function useLocalStorage<T>(key: string, initialValue: T) : [T, SetValue<T>] {
+  //initilization only run once
   const [value, setValue] = useState(() => {
     const storedValue = localStorage.getItem(key)
     if(storedValue !== null){
@@ -112,22 +116,149 @@ function useLocalStorage<T>(key: string, initialValue: T) : [T, SetValue<T>] {
     return initialValue
   })
 
-  const setValueAndStore = (newValue : T | ((prev: T) => T)) : void => {
+  //is used to set once initilized
+const setValueAndStore = (newValue : T | ((prev: T) => T)) : void => {
     setValue((prev) => {
       const next = newValue instanceof Function ? newValue(prev) : newValue
       localStorage.setItem(key, JSON.stringify(next))
       return next
     })
   }
+  //returns 
   return [value, setValueAndStore]
 }
+
+// TODO 2 — self-contained: each instance calls useLocalStorage itself.
+function ThemeToggle() {
+  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'light')
+  const toggle = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+
+  return (
+    <div
+      style={{
+        background: theme === 'dark' ? '#222' : '#eee',
+        color: theme === 'dark' ? '#eee' : '#111',
+        padding: '1rem',
+        borderRadius: 6,
+      }}
+    >
+      <span>Theme: {theme}</span>{' '}
+      <button onClick={toggle}>flip</button>
+    </div>
+  )
+}
+
+// TODO 2 answer — click the LEFT toggle; the RIGHT one does NOT change until
+// you refresh.
+//   Each <ThemeToggle /> calls useLocalStorage('theme', ...) separately, so each
+//   has its OWN useState inside its OWN copy of the hook. They share only the
+//   storage KEY, not React state. Clicking left calls left's setter: left's
+//   React state updates AND localStorage['theme'] is overwritten. Nothing tells
+//   right that storage changed, and its own state is untouched, so React never
+//   re-renders it. On the next page load, right's lazy initializer reads the
+//   updated storage value on mount — that's why a refresh syncs them.
+//   (A real cross-instance sync needs a 'storage' event listener or a shared
+//   context/store — neither of which this hook has.)
+
 // TODO 3
-// function useFetch<T>(url: string | null) { ... }
+// A hook CANNOT be async — it runs during render and must return synchronously.
+// The async work lives inside a useEffect (same rule as Exercise 05). The hook
+// returns state that updates as the request completes.
+type FetchStatus = 'idle' | 'loading' | 'success' | 'error'
+
+interface FetchResult<T> {
+  data: T | null
+  status: FetchStatus
+  error: string | null
+}
+
+function useFetch<T>(url: string | null): FetchResult<T> {
+  const [result, setResult] = useState<FetchResult<T>>({
+    data: null,
+    status: url ? 'loading' : 'idle',
+    error: null,
+  })
+
+  useEffect(() => {
+    if (!url) {
+      setResult({ data: null, status: 'idle', error: null })
+      return
+    }
+
+    let ignore = false
+    setResult({ data: null, status: 'loading', error: null })
+
+    fetch(url)
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(res.status === 404 ? 'Not found' : `HTTP ${res.status}`)
+        }
+        return (await res.json()) as T
+      })
+      .then((data) => {
+        if (!ignore) setResult({ data, status: 'success', error: null })
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setResult({
+            data: null,
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Request failed',
+          })
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [url])
+
+  return result
+}
+
+// TODO 4 — mini GitHub user lookup built on useFetch.
+// Note how little is left in this component: one useState for the input, one
+// useFetch call, and JSX. The whole fetch/loading/error/cleanup machine from
+// Exercise 05 now lives once, in the hook.
+function UserLookup() {
+  const [username, setUsername] = useState('')
+  const trimmed = username.trim()
+  const { data, status, error } = useFetch<GitHubUser>(
+    trimmed ? `https://api.github.com/users/${trimmed}` : null
+  )
+
+  return (
+    <div>
+      <h2>User Lookup</h2>
+      <input
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="GitHub username"
+      />
+      {status === 'loading' && <p>Loading…</p>}
+      {status === 'error' && <p>{error}</p>}
+      {status === 'success' && data && (
+        <div>
+          <img src={data.avatar_url} alt={data.login} width={64} height={64} />
+          <p>
+            {data.name ?? data.login} (@{data.login})
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Exercise08() {
   return (
     <section>
       <h1>Exercise 08 — Custom Hooks</h1>
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <ThemeToggle />
+        <ThemeToggle />
+      </div>
+      <UserLookup />
     </section>
   )
 }
