@@ -70,7 +70,7 @@
 //
 // ============================================================================
 
-import { useEffect, useReducer, useState, createContext, useContext, type ReactNode } from 'react'
+import { useEffect, useReducer, useState, createContext, useContext, type ReactNode, type Dispatch } from 'react'
 import { BrowserRouter, Routes, Route, Link, Outlet, useParams, useNavigate } from 'react-router-dom'
 
 // ---------------------------------------------------------------------------
@@ -128,15 +128,73 @@ function useFetch<T>(url: string | null) {
 // ---------------------------------------------------------------------------
 function contactReducer(state: Contact[], action: ContactAction): Contact[] {
   // handle 'load' | 'add' | 'update' | 'delete', immutably
-  return state
+  switch(action.type){
+    case 'load':
+      return action.contacts 
+    case 'add':
+      return [...state, action.contact]
+    case 'update':
+      return state.map((c) => c.id === action.contact.id ? action.contact : c)
+    case 'delete':
+      return state.filter((c) => c.id !== action.id)
+    default:
+      return state
+  }
 }
 
 // ---------------------------------------------------------------------------
 // TODO 2 — context + provider + hook
 // ---------------------------------------------------------------------------
-// const ContactsContext = createContext<...>(...)
-// function ContactsProvider({ children }: { children: ReactNode }) { ... }
-// function useContacts() { ... }
+interface ContactsContextValue {
+  contacts: Contact[]
+  dispatch: Dispatch<ContactAction>
+}
+
+// null default => useContacts() can detect "no provider above me" and throw.
+const ContactsContext = createContext<ContactsContextValue | null>(null)
+
+// shape of one https://jsonplaceholder.typicode.com/users record (the bits we use)
+interface JsonUser {
+  id: number
+  name: string
+  email: string
+  phone: string
+}
+
+function ContactsProvider({ children }: { children: ReactNode }) {
+  const [contacts, dispatch] = useReducer(contactReducer, [])
+  const { data } = useFetch<JsonUser[]>('https://jsonplaceholder.typicode.com/users')
+
+  // when the seed data arrives, load it into the reducer once
+  useEffect(() => {
+    if (!data) return
+    dispatch({
+      type: 'load',
+      contacts: data.map((u) => ({
+        id: String(u.id),
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        note: '',
+      })),
+    })
+  }, [data])
+
+  return (
+    <ContactsContext.Provider value={{ contacts, dispatch }}>
+      {children}
+    </ContactsContext.Provider>
+  )
+}
+
+function useContacts(): ContactsContextValue {
+  const ctx = useContext(ContactsContext)
+  if (!ctx) {
+    throw new Error('useContacts must be used inside <ContactsProvider>')
+  }
+  return ctx
+}
+
 
 // ---------------------------------------------------------------------------
 // Provided: layout with nav + <Outlet> for the routed page
@@ -154,31 +212,63 @@ function Layout() {
 }
 
 // ---------------------------------------------------------------------------
-// TODO 3 — <ContactList>
-// TODO 4 — <ContactDetail>
-// TODO 5 — <ContactForm mode="new" | "edit">
+// TODO 3 — <ContactList>  (route: "/")
 // ---------------------------------------------------------------------------
+function ContactList() {
+  const { contacts, dispatch } = useContacts()
+
+  if (contacts.length === 0) {
+    return (
+      <p>
+        No contacts yet. <Link to="/new">Add one</Link>.
+      </p>
+    )
+  }
+
+  return (
+    <div>
+      <p>
+        <Link to="/new">+ New contact</Link>
+      </p>
+      <ul>
+        {contacts.map((c) => (
+          <li key={c.id}>
+            <Link to={`/contacts/${c.id}`}>{c.name}</Link>{' '}
+            <button onClick={() => dispatch({ type: 'delete', id: c.id })}>delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// TODO 4 — replace this stub
+function ContactDetail() {
+  const { id } = useParams()
+  return <p>ContactDetail for {id} — TODO 4</p>
+}
+
+// TODO 5 — replace this stub
+function ContactForm({ mode }: { mode: 'new' | 'edit' }) {
+  return <p>ContactForm ({mode}) — TODO 5</p>
+}
 
 export default function Exercise10() {
   return (
     <section>
       <h1>Exercise 10 — Contacts Manager</h1>
-      {/*
-        Wrap the routes in <ContactsProvider> (TODO 2) once it exists:
-
-        <ContactsProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<ContactList />} />
-                <Route path="new" element={<ContactForm mode="new" />} />
-                <Route path="contacts/:id" element={<ContactDetail />} />
-                <Route path="contacts/:id/edit" element={<ContactForm mode="edit" />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </ContactsProvider>
-      */}
+      <ContactsProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<ContactList />} />
+              <Route path="new" element={<ContactForm mode="new" />} />
+              <Route path="contacts/:id" element={<ContactDetail />} />
+              <Route path="contacts/:id/edit" element={<ContactForm mode="edit" />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ContactsProvider>
     </section>
   )
 }
